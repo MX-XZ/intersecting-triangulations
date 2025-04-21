@@ -113,11 +113,13 @@ class Triangulator:
         b = min_deg * min_deg - min_val * max_val
         return a / b
 
-    # Rotates triangulations, if labels are ordered clock-wise, to the right.
-    def rotate(self, n: int, triangulation: set):
+    # TODO: Program rotation of triangulation. 
+
+    # Rotates triangulations, if labels are ordered clock-wise, num_rot times to the right.
+    def rotate(self, n: int, triangulation: set, num_rot=1):
         rotated = set()
         for j, k in triangulation:
-            coords = (j % n + 1, k % n + 1)
+            coords = ((j + num_rot - 1) % n + 1, (k + num_rot - 1) % n + 1)
             rotated.add((min(coords), max(coords)))
         return rotated
     
