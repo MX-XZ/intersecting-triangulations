@@ -4,6 +4,8 @@ import os
 import gurobipy as gp
 from gurobipy import GRB
 import pickle
+import matplotlib.pyplot as plt
+from collections import Counter
 
 # Class with auxillary functions for triangulations. 
 class Triangulator:
@@ -150,6 +152,26 @@ class Triangulator:
         
         triangulations = t.triangulations_trim(n)
         return sum([t.min_rotate(n, triang) for triang in triangulations]) / len(triangulations)
+    
+    # Average min_rotate of a triangulations of n-gon.
+    def average_min_rotate(self, n: int):
+
+        if n <= 3:
+            return - 1 
+        
+        triangulations = t.triangulations_trim(n)
+        return sum([t.min_rotate(n, triang) for triang in triangulations]) / len(triangulations)
+    
+    def min_rotate_distribution(self, n: int):
+        
+        if n <= 3:
+            return - 1 
+        
+        triangulations = t.triangulations_trim(n)
+        w = Counter([t.min_rotate(n, triang) for triang in triangulations])
+        print(w)
+        plt.bar(w.keys(), w.values())
+        plt.show()        
 
     # Computes the maximum intersecting family by translating it into independence number problem.
     def independence_exact(self, n: int):
@@ -176,9 +198,10 @@ class Triangulator:
 if __name__ == "__main__":
     t = Triangulator()
 
-    n = 7
+    n = 15
 
-    print(t.disjointness_adj(10))
+    t.min_rotate_distribution(n)
+    # print(t.disjointness_adj(7))
     # print(np.all(np.linalg.eigvals(t.disjointness_adj(n)) > 0))
     
     # t.independence_exact(n)
