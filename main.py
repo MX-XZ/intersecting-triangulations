@@ -173,7 +173,7 @@ class Triangulator:
         plt.bar(w.keys(), w.values())
         plt.show()        
 
-    # Computes the maximum intersecting family by translating it into independence number problem.
+    # Computes the maximum intersecting family by translating it into independence number problem. 
     def independence_exact(self, n: int):
         A = self.disjointness_adj(n)
         triangulations = self.triangulations_trim(n)
@@ -194,14 +194,46 @@ class Triangulator:
             if val != 0:
                 print(triang)
 
+    # Shows that chromatic number is at least n-2.
+    def chromatic_exact(self, n: int): 
+        A = self.disjointness_adj(n)
+        colors = n - 3
+
+        m = gp.Model("ILP")
+        y = m.addMVar(len(A) * colors, vtype = GRB.BINARY, name = "triangulation x color")
+
+        for j in range(len(A)):
+            m.addConstr(sum(y[colors * j:colors * (j + 1)]) == 1)
+            conflicts = np.nonzero(A[j])[0]
+            for k in conflicts:
+                if k > j:
+                    m.addConstr(y[(colors*j):colors*(j+1)] + y[colors*k:colors*(k+1)] <= np.ones(colors))
+
+        #for it in range(colors):
+        #   m.addConstr(y[it:((len(A) - 1) * colors + it + 1):colors] @ A @ y[it:((len(A) - 1) * colors + it + 1):colors] == np.zeros(len(A)))
+
+        m.optimize()
+
+        #all_vars =  m.getVars()
+        #values =    m.getAttr("X", all_vars)
+        #
+        #triangulations = self.triangulations_trim(n)
+
+        #for triang, val in zip(itertools.product(triangulations, range(n-3)), values): 
+        #    if val == 1:
+        #        print(triang)
+
 # Driver code 
 if __name__ == "__main__":
     t = Triangulator()
 
-    n = 15
+    n = 10
+    t.chromatic_exact(n)
+    #t.independence_exact(n)
 
-    t.min_rotate_distribution(n)
-    # print(t.disjointness_adj(7))
+    #t.min_rotate_distribution(n)
+    #t.min_rotate_distribution(n)
+    # print(t.disjointness_adj(7)) 2 5 8 76 252 840 2959 10588 38064 507585 138362 1872872
     # print(np.all(np.linalg.eigvals(t.disjointness_adj(n)) > 0))
     
     # t.independence_exact(n)
