@@ -195,38 +195,30 @@ class Triangulator:
                 print(triang)
 
     # Shows that chromatic number is at least n-2.
-    def chromatic_exact(self, n: int): 
-        A = self.disjointness_adj(n)
-        A_copy = self.disjointness_adj(n)
+    def chromatic_exact(self, n: int, A = None):
+
+        if A is None: 
+            A = self.disjointness_adj(n)
 
         colors = n - 3
 
-        triangulations = self.triangulations_trim(n)
+        m = gp.Model("ILP")
+        y = m.addMVar(len(A) * colors, vtype = GRB.BINARY, name = "triangulation x color")
 
-        bad = []
-
-        for it in range(len(A)):
-            A = np.delete(np.delete(A, it, axis=0), it, axis=1)
-            m = gp.Model("ILP")
-            y = m.addMVar(len(A) * colors, vtype = GRB.BINARY, name = "triangulation x color")
-
-            for j in range(len(A)):
-                m.addConstr(sum(y[colors * j:colors * (j + 1)]) == 1)
-                conflicts = np.nonzero(A[j])[0]
-                for k in conflicts:
-                    if k > j:
-                        m.addConstr(y[(colors*j):colors*(j+1)] + y[colors*k:colors*(k+1)] <= np.ones(colors))
+        for j in range(len(A)):
+            m.addConstr(sum(y[colors * j:colors * (j + 1)]) == 1)
+            conflicts = np.nonzero(A[j])[0]
+            for k in conflicts:
+                if k > j:
+                    m.addConstr(y[(colors*j):colors*(j+1)] + y[colors*k:colors*(k+1)] <= np.ones(colors))
 
             #for it in range(colors):
             #   m.addConstr(y[it:((len(A) - 1) * colors + it + 1):colors] @ A @ y[it:((len(A) - 1) * colors + it + 1):colors] == np.zeros(len(A)))
 
-            m.optimize()
+        m.optimize()
 
-            if m.status == GRB.OPTIMAL:
-                bad.append(it)
-
-            A = np.array(A_copy)
-
+        return m.status
+    
         #all_vars =  m.getVars()
         #values =    m.getAttr("X", all_vars)
         #
@@ -236,18 +228,47 @@ class Triangulator:
         #    if val == 1:
         #        print(triang)
 
-        print(bad)
+    def chromatic_critical(self, n: int):
+        A = self.disjointness_adj(n)
+        A_copy = self.disjointness_adj(n)
 
+        triangulations = self.triangulations_trim(n)
+
+        candidates = []
+        future_candidates = [set()]
+
+        while len(future_candidates) > 0:
+            
+            candidates = future_candidates
+            future_candidates = []
+
+            for cand in candidates:
+                
+                rest =  set(range(len(A))).difference(cand)
+
+                for it in rest:
+                    
+                    mask = list(rest.difference({it}))
+                    
+                    A = A[np.ix_(mask, mask)]
+
+                    if self.chromatic_exact(n, A) == GRB.INFEASIBLE:
+                        future_candidates.append(mask)
+
+                    A = np.array(A_copy)
+        
+        for cand in candidates:
+            print([triangulations(it) for it in cand])
+
+        return candidates
+    
 # Driver code 
 if __name__ == "__main__":
     t = Triangulator()
 
     n = 7
-    t.chromatic_exact(n)
-    triang = t.triangulations_trim(n)
-
-    for it in [0, 8, 17, 22, 29, 37, 41]:
-        print(triang[it])
+    print(t.chromatic_critical(n))
+    
     #t.independence_exact(n)
 
     #t.min_rotate_distribution(n)
