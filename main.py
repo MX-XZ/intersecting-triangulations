@@ -253,7 +253,9 @@ class Triangulator:
                     A = A[np.ix_(mask, mask)]
 
                     if self.chromatic_exact(n, A) == GRB.INFEASIBLE:
-                        future_candidates.append(mask)
+                        new_cand = cand.copy()
+                        new_cand.add(it)
+                        future_candidates.append(new_cand)
 
                     A = np.array(A_copy)
         
