@@ -257,8 +257,9 @@ class Triangulator:
 
                     A = np.array(A_copy)
         
+        print(candidates)
         for cand in candidates:
-            print([triangulations(it) for it in cand])
+            print([triangulations[it] for it in cand])
 
         return candidates
     
