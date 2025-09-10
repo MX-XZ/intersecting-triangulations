@@ -197,22 +197,35 @@ class Triangulator:
     # Shows that chromatic number is at least n-2.
     def chromatic_exact(self, n: int): 
         A = self.disjointness_adj(n)
+        A_copy = self.disjointness_adj(n)
+
         colors = n - 3
 
-        m = gp.Model("ILP")
-        y = m.addMVar(len(A) * colors, vtype = GRB.BINARY, name = "triangulation x color")
+        triangulations = self.triangulations_trim(n)
 
-        for j in range(len(A)):
-            m.addConstr(sum(y[colors * j:colors * (j + 1)]) == 1)
-            conflicts = np.nonzero(A[j])[0]
-            for k in conflicts:
-                if k > j:
-                    m.addConstr(y[(colors*j):colors*(j+1)] + y[colors*k:colors*(k+1)] <= np.ones(colors))
+        bad = []
 
-        #for it in range(colors):
-        #   m.addConstr(y[it:((len(A) - 1) * colors + it + 1):colors] @ A @ y[it:((len(A) - 1) * colors + it + 1):colors] == np.zeros(len(A)))
+        for it in range(len(A)):
+            A = np.delete(np.delete(A, it, axis=0), it, axis=1)
+            m = gp.Model("ILP")
+            y = m.addMVar(len(A) * colors, vtype = GRB.BINARY, name = "triangulation x color")
 
-        m.optimize()
+            for j in range(len(A)):
+                m.addConstr(sum(y[colors * j:colors * (j + 1)]) == 1)
+                conflicts = np.nonzero(A[j])[0]
+                for k in conflicts:
+                    if k > j:
+                        m.addConstr(y[(colors*j):colors*(j+1)] + y[colors*k:colors*(k+1)] <= np.ones(colors))
+
+            #for it in range(colors):
+            #   m.addConstr(y[it:((len(A) - 1) * colors + it + 1):colors] @ A @ y[it:((len(A) - 1) * colors + it + 1):colors] == np.zeros(len(A)))
+
+            m.optimize()
+
+            if m.status == GRB.OPTIMAL:
+                bad.append(it)
+
+            A = np.array(A_copy)
 
         #all_vars =  m.getVars()
         #values =    m.getAttr("X", all_vars)
@@ -223,12 +236,18 @@ class Triangulator:
         #    if val == 1:
         #        print(triang)
 
+        print(bad)
+
 # Driver code 
 if __name__ == "__main__":
     t = Triangulator()
 
-    n = 10
+    n = 7
     t.chromatic_exact(n)
+    triang = t.triangulations_trim(n)
+
+    for it in [0, 8, 17, 22, 29, 37, 41]:
+        print(triang[it])
     #t.independence_exact(n)
 
     #t.min_rotate_distribution(n)
