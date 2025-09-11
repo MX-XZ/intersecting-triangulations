@@ -234,30 +234,58 @@ class Triangulator:
 
         triangulations = self.triangulations_trim(n)
 
-        candidates = []
-        future_candidates = [set()]
+        # Keep minimal bad sets.
+        bad = set()
+        
+        candidates = None
+        future_candidates = set()
+        
+        for it in range(len(A)):
+            mask = np.arange(A.shape[0]) != it
+
+            A = A[np.ix_(mask, mask)]
+
+            if self.chromatic_exact(n, A) == GRB.INFEASIBLE:
+                future_candidates.add((it,))
+            else:
+                bad.add((it,))
+
+            A = np.array(A_copy)
 
         while len(future_candidates) > 0:
             
+            checked = set()
+            
             candidates = future_candidates
-            future_candidates = []
+            future_candidates = set()
 
-            for cand in candidates:
+            for cand1, cand2 in itertools.combinations(candidates, 2):
                 
-                rest =  set(range(len(A))).difference(cand)
+                cand1 = set(cand1)
 
-                for it in rest:
+                if len(cand1.symmetric_difference(cand2)) != 2:
+                    continue 
                     
-                    mask = list(rest.difference({it}))
-                    
-                    A = A[np.ix_(mask, mask)]
+                new_cand = cand1.union(cand2)
 
-                    if self.chromatic_exact(n, A) == GRB.INFEASIBLE:
-                        new_cand = cand.copy()
-                        new_cand.add(it)
-                        future_candidates.append(new_cand)
+                tup = tuple(sorted(new_cand))
+                if tup in checked:
+                    continue 
+                checked.add(tup)
 
-                    A = np.array(A_copy)
+                if any([new_cand.issuperset(bad_set) for bad_set in bad]):
+                    continue
+
+                mask = [it for it in range(len(A)) if it not in new_cand]
+
+                A = A[np.ix_(mask, mask)]
+
+                if self.chromatic_exact(n, A) == GRB.INFEASIBLE:
+                    future_candidates.add(tup)
+                else:
+                    bad.add(tup)
+
+                A = np.array(A_copy)
         
         print(candidates)
         for cand in candidates:
@@ -269,8 +297,8 @@ class Triangulator:
 if __name__ == "__main__":
     t = Triangulator()
 
-    n = 7
-    print(t.chromatic_critical(n))
+    n = 6
+    t.chromatic_critical(n)
     
     #t.independence_exact(n)
 
