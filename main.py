@@ -293,11 +293,57 @@ class Triangulator:
 
         return candidates
     
+    # Constructs vertex-critical subgraph native in Gurobi by computing an Irreducible Inconsistent System (IIS).
+    # This will lead to the computation of some vertex-critical subgraph, but not necessarily the one with 
+    # minimum number of vertices. 
+    # To be specific, the output are the vertices of the color-critical graph.
+    # The printed output are the ones excluded.
+    def chromatic_critical_GRB(self, n: int):
+        
+        A = self.disjointness_adj(n)
+
+        colors = n - 3
+
+        m = gp.Model("ILP")
+        y = m.addMVar(len(A) * colors, vtype = GRB.BINARY, name = "triangulation x color")
+
+        for j in range(len(A)):
+            m.addConstr(sum(y[colors * j:colors * (j + 1)]) == 1, name=str(j))
+            conflicts = np.nonzero(A[j])[0]
+            for k in conflicts:
+                if k > j:
+                    constr = m.addConstr(y[(colors*j):colors*(j+1)] + y[colors*k:colors*(k+1)] <= np.ones(colors), name="ignore")
+                    # Forces constraint to be included in IIS. 
+                    # Thus, the only constraints that can be excluded are the inclusion of vertices.
+                    constr.IISConstrForce = 1
+
+        m.computeIIS()
+
+        m.write("model-%s.ilp" % str(n))
+
+        critical_vertices = []
+        for constr in m.getConstrs():
+            if constr.ConstrName.startswith("ignore"):
+                continue
+            if constr.IISConstr:
+                critical_vertices.append(int(constr.ConstrName))
+
+        uncritical_vertices = set(range(n)).difference(critical_vertices)
+
+        print(uncritical_vertices)
+
+        triang = self.triangulations_trim(n)
+
+        print([triang[it] for it in uncritical_vertices])
+
+        return critical_vertices
+
 # Driver code 
 if __name__ == "__main__":
     t = Triangulator()
 
-    n = 6
+    n = 7
+
     t.chromatic_critical(n)
     
     #t.independence_exact(n)
