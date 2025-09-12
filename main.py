@@ -326,14 +326,14 @@ class Triangulator:
             if constr.ConstrName.startswith("ignore"):
                 continue
             if constr.IISConstr:
+                print(constr.ConstrName)
                 critical_vertices.append(int(constr.ConstrName))
-
-        uncritical_vertices = set(range(n)).difference(critical_vertices)
-
-        print(uncritical_vertices)
 
         triang = self.triangulations_trim(n)
 
+        uncritical_vertices = set(range(len(triang)))
+        uncritical_vertices.difference_update(critical_vertices)
+        
         print([triang[it] for it in uncritical_vertices])
 
         return critical_vertices
@@ -344,7 +344,7 @@ if __name__ == "__main__":
 
     n = 7
 
-    t.chromatic_critical(n)
+    print(t.chromatic_critical_GRB(n))
     
     #t.independence_exact(n)
 
