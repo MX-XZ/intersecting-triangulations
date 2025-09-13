@@ -1,11 +1,12 @@
-import itertools 
-import numpy as np
-import os
+from collections import Counter
 import gurobipy as gp
 from gurobipy import GRB
-import pickle
+import itertools 
 import matplotlib.pyplot as plt
-from collections import Counter
+import networkx as nx
+import numpy as np
+import os
+import pickle
 
 # Class with auxillary functions for triangulations. 
 class Triangulator:
@@ -338,13 +339,37 @@ class Triangulator:
 
         return critical_vertices
 
+    def draw_triangulation(self, n: int, index: int, save=False, show=True):
+        edges = self.triangulations(n)[index]
+
+        G = nx.Graph()
+        G.add_edges_from(edges)
+        
+        pos = {}
+        for k in range(1, n + 1):
+            pos[k] = (np.cos(2 * np.pi * k / n), np.sin(2 * np.pi * k / n))
+
+        plt.figure(figsize=(8, 8))
+        plt.axis("equal")
+        nx.draw(G, pos=pos, with_labels = True)
+
+        if save:
+            plt.savefig('t-%d-%d.png' % (n, index), bbox_inches='tight')
+
+        if show:
+            plt.show()
+        
+        plt.close()
+        
 # Driver code 
 if __name__ == "__main__":
     t = Triangulator()
 
-    n = 7
+    n = 8
 
-    print(t.chromatic_critical_GRB(n))
+    for k in [0, 3, 4, 6, 10, 15, 18, 19, 22, 30, 32, 35, 38, 41, 42, 50, 51, 54, 59, 60, 64, 70, 74, 77, 79, 85, 87, 89, 92, 95, 97, 99, 100, 105, 108, 113, 117, 124, 125, 126, 129, 131]:
+        t.draw_triangulation(n, k, True, False)
+    #print(t.chromatic_critical_GRB(n))
     
     #t.independence_exact(n)
 
