@@ -228,7 +228,36 @@ class Triangulator:
         #for triang, val in zip(itertools.product(triangulations, range(n-3)), values): 
         #    if val == 1:
         #        print(triang)
+    
+    # Method that checks whether chi(Kneser(Triangulations - T)) drops iff T is a star.
+    def chromatic_critical_stars(self, n: int):
+        A = self.disjointness_adj(n)
+        A_copy = self.disjointness_adj(n)
 
+        triangulations = self.triangulations_trim(n)
+
+        # Keep minimal bad sets.
+        bad = []
+        
+        for it, triang in enumerate(triangulations):
+            mask = np.arange(A.shape[0]) != it
+
+            A = A[np.ix_(mask, mask)]
+
+            if self.chromatic_exact(n, A) == GRB.OPTIMAL:
+                bad.append(triang)
+
+            A = np.array(A_copy)
+
+        assert len(bad) == n
+
+        for triang in bad:
+            print(triang)
+            triang = [set(tup) for tup in triang]
+            assert len(set.intersection(*triang)) == 1
+
+        return True
+        
     def chromatic_critical(self, n: int):
         A = self.disjointness_adj(n)
         A_copy = self.disjointness_adj(n)
@@ -360,15 +389,101 @@ class Triangulator:
             plt.show()
         
         plt.close()
+
+    # Returns same diagonal if we do not flip, otherwise the flipped one. 
+    # Assumes triangulation here is not trimmed. 
+    def flippable(self, triang: set, edge: tuple):
+        (it, j) = edge 
+
+        if it - j in {-2, -1, 1, 2}:
+            return edge 
         
+        common = {k for k in range(1, n + 1) if (min(it, k), max(it, k)) in triang and (min(j, k), max(j, k)) in triang}
+        
+        common.difference_update({it, j})
+
+        if len(common) != 2:
+            print(common)
+            print(triang)
+            print(edge)
+
+        assert len(common) == 2
+
+        common = list(common)
+
+        k, l = common[0], common[1]
+
+        if k - l in {-2, 2}:
+            return edge 
+
+        q = k + l - it - j
+
+        if q <= n / 2 + 1:
+            return edge
+        else:
+            return (min(k, l), max(k, l))
+
+    def color_critical_candidate(self, n: int): 
+        triangs = self.triangulations(n)
+        cycle = frozenset([(j, j+1) for j in range(1, n)] + [(1, n)])
+        
+        keepers = set()
+        explored = set()
+        processing = []
+        to_explore = set([frozenset(triang) for triang in triangs])
+
+        triang = to_explore.pop()
+        
+        while len(to_explore) > 0:
+            
+            processing.append(triang)
+        
+            for edge in triang:
+                if edge in cycle:
+                    continue 
+                new_edge = self.flippable(triang, edge)
+                if new_edge != edge:
+                    new_triang = triang.symmetric_difference({edge, new_edge})
+
+                    if new_triang in explored:
+                        explored.update(processing)
+                        processing = []
+                    elif new_triang in to_explore:
+                        to_explore.remove(new_triang)
+                        triang = new_triang
+                        break
+                    else:
+                        # We ran into a cycle. This is bad.
+                        return - 1
+                    
+            keepers.add(triang)
+            explored.update(processing)       
+            processing = []
+
+            if len(to_explore) > 0:
+                triang = to_explore.pop()
+        
+        return [keeper.difference(cycle) for keeper in keepers]
+
 # Driver code 
 if __name__ == "__main__":
     t = Triangulator()
 
-    n = 8
+    n = 7
 
-    for k in [0, 3, 4, 6, 10, 15, 18, 19, 22, 30, 32, 35, 38, 41, 42, 50, 51, 54, 59, 60, 64, 70, 74, 77, 79, 85, 87, 89, 92, 95, 97, 99, 100, 105, 108, 113, 117, 124, 125, 126, 129, 131]:
-        t.draw_triangulation(n, k, True, False)
+    print(len(t.color_critical_candidate(n)))
+    #A = t.disjointness_adj(n).astype(int)
+    #print(A)
+    #B = np.linalg.matrix_power(A, 3)
+    #
+    #triangulations = t.triangulations_trim(n)
+#
+    #for it in range(len(B)):
+    #    if B[it][it] == 0:
+    #        print(triangulations[it])
+    #t.chromatic_critical(n)
+    #for k in [0, 3, 4, 6, 10, 15, 18, 19, 22, 30, 32, 35, 38, 41, 42, 50, 51, 54, 59, 60, 64, 70, 74, 77, 79, 85, 87, 89, 92, 95, 97, 99, 100, 105, 108, 113, 117, 124, 125, 126, 129, 131]:
+    #    t.draw_triangulation(n, k, True, False)
     #print(t.chromatic_critical_GRB(n))
     
     #t.independence_exact(n)
