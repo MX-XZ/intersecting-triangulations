@@ -7,10 +7,14 @@ import networkx as nx
 import numpy as np
 import os
 import pickle
+import copy 
 
 # Class with auxillary functions for triangulations. 
 class Triangulator:
 
+    def __init__(self, n: int):
+        self.n = n
+    
     # Generates for given n all the triangulations of the n-gon using Hurtado-Noy Hierarchy.
     def triangulations(self, n: int):
         
@@ -197,13 +201,16 @@ class Triangulator:
 
     # Shows that chromatic number is at least n-2.
     def chromatic_exact(self, n: int, A = None):
-
+        
         if A is None: 
             A = self.disjointness_adj(n)
 
         colors = n - 3
 
         m = gp.Model("ILP")
+        
+        m.Params.OutputFlag = 0 
+
         y = m.addMVar(len(A) * colors, vtype = GRB.BINARY, name = "triangulation x color")
 
         for j in range(len(A)):
@@ -392,6 +399,7 @@ class Triangulator:
 
     # Returns same diagonal if we do not flip, otherwise the flipped one. 
     # Assumes triangulation here is not trimmed. 
+    # TODO: might not properly work
     def flippable(self, triang: set, edge: tuple):
         (it, j) = edge 
 
@@ -423,64 +431,195 @@ class Triangulator:
         else:
             return (min(k, l), max(k, l))
 
-    def color_critical_candidate(self, n: int): 
+    # Returns triangulation T' resulting from the edge getting flipped IF T' -> T is a good flip.
+    # Assumes triangulation here is not trimmed. 
+    # TODO: does not properly work
+    def reach(self, triang: frozenset, edge: tuple):
+        (it, j) = edge 
+
+        if it - j in {1-n, 2-n, -2, -1, 1, 2, n-2, n-1}:
+            return edge 
+        
+        common = {k for k in range(1, n + 1) if (min(it, k), max(it, k)) in triang and (min(j, k), max(j, k)) in triang}
+        
+        common.difference_update({it, j})
+
+        assert len(common) == 2
+
+        common = list(common)
+
+        k, l = common[0], common[1]
+
+        if k - l in {1-n, 2-n, -2, -1, 1, 2, n-2, n-1}:
+            return edge 
+
+        q = it + j - k - l
+
+        if q <= n / 2 + 1:
+            return triang
+        else:
+            new_triang = set(triang).difference({edge})
+            new_triang.add((min(k, l), max(k, l)))
+            return frozenset(new_triang)
+        
+    def color_critical_candidate(self): 
+        n = self.n
         triangs = self.triangulations(n)
         cycle = frozenset([(j, j+1) for j in range(1, n)] + [(1, n)])
         
-        keepers = set()
-        explored = set()
-        processing = []
-        to_explore = set([frozenset(triang) for triang in triangs])
-
-        triang = to_explore.pop()
-        
-        while len(to_explore) > 0:
-            
-            processing.append(triang)
-        
+        candidate_set = set()
+        for triang in triangs:
+            gets_flipped = False
             for edge in triang:
                 if edge in cycle:
                     continue 
-                new_edge = self.flippable(triang, edge)
-                if new_edge != edge:
-                    new_triang = triang.symmetric_difference({edge, new_edge})
+                if self.flippable(triang, edge) != edge:
+                    gets_flipped = True
+                    break
+            if not gets_flipped:
+                candidate_set.add(frozenset(triang))
 
-                    if new_triang in explored:
-                        explored.update(processing)
-                        processing = []
-                    elif new_triang in to_explore:
-                        to_explore.remove(new_triang)
-                        triang = new_triang
-                        break
-                    else:
-                        # We ran into a cycle. This is bad.
-                        return - 1
-                    
-            keepers.add(triang)
-            explored.update(processing)       
-            processing = []
+        to_explore = copy.deepcopy(candidate_set)
+        reachable = copy.deepcopy(candidate_set)
 
-            if len(to_explore) > 0:
-                triang = to_explore.pop()
+        while len(to_explore) > 0 and len(triangs) > len(to_explore):
+            triang = to_explore.pop()
+            for edge in triang:
+                if edge in cycle:
+                    continue 
+                new_triang = self.reach(triang, edge)
+                if new_triang != triang and new_triang not in reachable:
+                    reachable.add(new_triang)
+                    to_explore.add(new_triang)
         
-        return [keeper.difference(cycle) for keeper in keepers]
+        print(len(candidate_set))
+        print(len(reachable))
+        print(len(triangs))
+
+        print(reachable.symmetric_difference([frozenset(triang) for triang in triangs]))
+
+        return len(reachable) == len(triangs)
+
+    def color_critical_candidate_2(self, n):        
+        assert n % 3 == 0
+
+        triangs = []
+        cycle = frozenset([(j, j+1) for j in range(1, n)] + [(1, n)])
+
+        for m, triang in enumerate(self.triangulations(n)):
+            not_flipped = True
+
+            for edge in triang:
+                if edge in cycle: 
+                    continue 
+
+                (it, j) = edge 
+
+                index = it // 3 
+
+
+                if it - 3 * index == 1 and j - 3 * index == 4:
+                    common = {k for k in range(1, n + 1) if (min(it, k), max(it, k)) in triang and (min(j, k), max(j, k)) in triang}
+                    common.difference_update({it, j})
+                    assert len(common) == 2
+                    common = list(common)
+                    k, l = common[0], common[1]
+
+                    if k == 3 * index + 2 and (l > 3 * index + 4 and l < n):
+                        not_flipped = False
+                        break
+                        
+            if not_flipped:
+                triangs.append(m)
+        
+        print(len(triangs))
+        return triangs
+
+    def color_critical_candidate_2_check(self, n):
+        triangs = self.color_critical_candidate_2(n)
+        
+        A = self.disjointness_adj(n)
+        A = A[np.ix_(triangs, triangs)]
+        
+        A_copy = self.disjointness_adj(n)
+        A_copy = A_copy[np.ix_(triangs, triangs)]
+
+        for it in range(len(triangs)):
+            mask = np.arange(A.shape[0]) != it
+
+            A = A[np.ix_(mask, mask)]
+
+            if self.chromatic_exact(n, A) == GRB.OPTIMAL:
+                return "Not color-critical. :("
+
+            A = np.array(A_copy)
+
+        return "Is color-critical! :)"
+    
+    # Seems to behave more like ceil((n-2)/3) rather than ceil((n-2)/2).
+    # Or ceil((n-4)/2) except when n = 6?
+    # Data: n = 5 -> 1, n = 6 -> 2, n = 7 -> 2, n = 8 -> 2, n = 9 -> 3, ...
+    def chromatic_exact_3_uniform(self):        
+        triangs = self.triangulations_trim(self.n)
+
+        A = self.disjointness_adj(self.n)
+
+        upper_bound = int(np.ceil((self.n - 2) / 2))
+
+        m = gp.Model("ILP")
+        x = m.addMVar(len(triangs) * upper_bound, vtype = GRB.BINARY, name = "triangulation x color")
+        y = m.addMVar(upper_bound, vtype = GRB.BINARY, name = "color used")
+        m.setObjective(y.sum(), GRB.MINIMIZE)
+
+        for j in range(1, upper_bound):
+            m.addConstr(y[j - 1] >= y[j])
+
+        for j in range(upper_bound):
+            m.addConstr(y[j] * len(triangs) >= x[j::upper_bound].sum())
+
+        for j in range(len(triangs)):
+            m.addConstr(sum(x[upper_bound * j:upper_bound * (j + 1)]) == 1)
+        
+        disj = [set() for _ in range(len(triangs))]
+        for (it, j) in np.transpose(np.nonzero(A)):
+            disj[it].add(j)
+        
+        for n1 in range(len(triangs)):
+            conflicts = disj[n1]
+            for n2, n3 in itertools.combinations(conflicts, 2):
+                if n3 in disj[n2]:
+                    m.addConstr(x[upper_bound * n1:upper_bound * (n1 + 1)] + x[upper_bound * n2:upper_bound * (n2 + 1)] + x[upper_bound * n3: upper_bound * (n3 + 1)] <= 2 * np.ones(upper_bound))
+        
+        m.optimize()
+
+        partition = [[] for _ in range(int(m.ObjVal))]
+
+        all_vars =  m.getVars()
+        values =    m.getAttr("X", all_vars)
+        for (triang, c), val in zip(itertools.product(range(len(triangs)), range(upper_bound)), values):
+            if val == 1:
+                partition[c].append(triang)
+
+        return partition
+    
 
 # Driver code 
 if __name__ == "__main__":
-    t = Triangulator()
+    n = 8
 
-    n = 7
+    t = Triangulator(n)
 
-    print(len(t.color_critical_candidate(n)))
-    #A = t.disjointness_adj(n).astype(int)
-    #print(A)
-    #B = np.linalg.matrix_power(A, 3)
-    #
-    #triangulations = t.triangulations_trim(n)
-#
-    #for it in range(len(B)):
-    #    if B[it][it] == 0:
-    #        print(triangulations[it])
+    # print(t.chromatic_exact_3_uniform())
+
+    for triang in t.triangulations_trim(n):
+        t.draw_triangulation(n, t.triangulations_trim(n).index(triang), True, False)
+    #print(t.color_critical_candidate_2_check(n))
+    
+    # {(1, 11), (5, 7), (1, 4), (11, 12), (2, 9), (4, 7), (5, 12)}
+    #for k in range(14):
+    #    t.draw_triangulation(n, k, True, False)
+    
+
     #t.chromatic_critical(n)
     #for k in [0, 3, 4, 6, 10, 15, 18, 19, 22, 30, 32, 35, 38, 41, 42, 50, 51, 54, 59, 60, 64, 70, 74, 77, 79, 85, 87, 89, 92, 95, 97, 99, 100, 105, 108, 113, 117, 124, 125, 126, 129, 131]:
     #    t.draw_triangulation(n, k, True, False)
