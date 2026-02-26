@@ -11,13 +11,10 @@ import copy
 
 # Class with auxillary functions for triangulations. 
 class Triangulator:
-
-    def __init__(self, n: int):
-        self.n = n
     
     # Generates for given n all the triangulations of the n-gon using Hurtado-Noy Hierarchy.
     def triangulations(self, n: int):
-        
+
         if os.path.isfile('triangulations-%s.data' % str(n)):
             with open(os.path.join('triangulations-%s.data' % str(n)), "rb") as data_file:
                 out = pickle.load(data_file)
@@ -62,7 +59,6 @@ class Triangulator:
     
     # Generates for given n all the triangulations of the n-gon using Hurtado-Noy Hierarchy but with outer edges removed.
     def triangulations_trim(self, n: int):
-
         if os.path.isfile('triangulations-trim-%s.data' % str(n)):
             with open(os.path.join('triangulations-trim-%s.data' % str(n)), "rb") as data_file:
                 out = pickle.load(data_file)
@@ -81,7 +77,6 @@ class Triangulator:
 
     # Generate adjacency matrix for graph with t1 ~ t2 iff they don't share a(-n inner) chord. 
     def disjointness_adj(self, n: int):
-
         if os.path.isfile('adj-%s.npy' % str(n)):
             with open(os.path.join('adj-%s.npy' % str(n)), "rb") as np_file:
                 out = np.load(np_file)
@@ -119,8 +114,6 @@ class Triangulator:
         a = - len(A) * min_val * max_val 
         b = min_deg * min_deg - min_val * max_val
         return a / b
-
-    # TODO: Program rotation of triangulation. 
 
     # Rotates triangulations, if labels are ordered clock-wise, num_rot times to the right.
     def rotate(self, n: int, triangulation: set, num_rot=1):
@@ -400,7 +393,7 @@ class Triangulator:
     # Returns same diagonal if we do not flip, otherwise the flipped one. 
     # Assumes triangulation here is not trimmed. 
     # TODO: might not properly work
-    def flippable(self, triang: set, edge: tuple):
+    def flippable(self, n: int, triang: set, edge: tuple):
         (it, j) = edge 
 
         if it - j in {-2, -1, 1, 2}:
@@ -434,7 +427,7 @@ class Triangulator:
     # Returns triangulation T' resulting from the edge getting flipped IF T' -> T is a good flip.
     # Assumes triangulation here is not trimmed. 
     # TODO: does not properly work
-    def reach(self, triang: frozenset, edge: tuple):
+    def reach(self, n: int, triang: frozenset, edge: tuple):
         (it, j) = edge 
 
         if it - j in {1-n, 2-n, -2, -1, 1, 2, n-2, n-1}:
@@ -462,8 +455,7 @@ class Triangulator:
             new_triang.add((min(k, l), max(k, l)))
             return frozenset(new_triang)
         
-    def color_critical_candidate(self): 
-        n = self.n
+    def color_critical_candidate(self, n: int): 
         triangs = self.triangulations(n)
         cycle = frozenset([(j, j+1) for j in range(1, n)] + [(1, n)])
         
@@ -473,7 +465,7 @@ class Triangulator:
             for edge in triang:
                 if edge in cycle:
                     continue 
-                if self.flippable(triang, edge) != edge:
+                if self.flippable(n, triang, edge) != edge:
                     gets_flipped = True
                     break
             if not gets_flipped:
@@ -500,7 +492,7 @@ class Triangulator:
 
         return len(reachable) == len(triangs)
 
-    def color_critical_candidate_2(self, n):        
+    def color_critical_candidate_2(self, n: int):        
         assert n % 3 == 0
 
         triangs = []
@@ -535,7 +527,7 @@ class Triangulator:
         print(len(triangs))
         return triangs
 
-    def color_critical_candidate_2_check(self, n):
+    def color_critical_candidate_2_check(self, n: int):
         triangs = self.color_critical_candidate_2(n)
         
         A = self.disjointness_adj(n)
@@ -559,12 +551,12 @@ class Triangulator:
     # Seems to behave more like ceil((n-2)/3) rather than ceil((n-2)/2).
     # Or ceil((n-4)/2) except when n = 6?
     # Data: n = 5 -> 1, n = 6 -> 2, n = 7 -> 2, n = 8 -> 2, n = 9 -> 3, ...
-    def chromatic_exact_3_uniform(self):        
-        triangs = self.triangulations_trim(self.n)
+    def chromatic_exact_3_uniform(self, n: int):        
+        triangs = self.triangulations_trim(n)
 
-        A = self.disjointness_adj(self.n)
+        A = self.disjointness_adj(n)
 
-        upper_bound = int(np.ceil((self.n - 2) / 2))
+        upper_bound = int(np.ceil((n - 2) / 2))
 
         m = gp.Model("ILP")
         x = m.addMVar(len(triangs) * upper_bound, vtype = GRB.BINARY, name = "triangulation x color")
@@ -607,7 +599,7 @@ class Triangulator:
 if __name__ == "__main__":
     n = 8
 
-    t = Triangulator(n)
+    t = Triangulator()
 
     # print(t.chromatic_exact_3_uniform())
 
